@@ -183,6 +183,44 @@
     }
 }
 
+/**
+ Note that the test passes but the delegate method declared in line 239 is not passing.
+ */
+- (void)test_NSURLSession_POSTDataTask_DelegateMethods
+{
+    if ([NSURLSessionConfiguration class] && [NSURLSession class])
+    {
+        NSData* expectedResponse = [NSStringFromSelector(_cmd) dataUsingEncoding:NSUTF8StringEncoding];
+        [OHHTTPStubs stubRequestsPassingTest:^BOOL(NSURLRequest *request) {
+            return [request.URL.scheme isEqualToString:@"stub"];
+        } withStubResponse:^OHHTTPStubsResponse *(NSURLRequest *request) {
+            return [[OHHTTPStubsResponse responseWithData:expectedResponse statusCode:200 headers:nil]
+                    responseTime:0.5];
+        }];
+
+        NSURLSessionConfiguration* config = [NSURLSessionConfiguration defaultSessionConfiguration];
+        NSURLSession* session = [NSURLSession sessionWithConfiguration:config delegate:self delegateQueue:nil];
+
+        /* Create 250KB of test data */
+        const uint8_t pattern[8] = { 0xA, 0xB, 0xC, 0xD, 0xE, 0xF, 0x12 };
+        NSMutableData *data = [NSMutableData dataWithCapacity: 1024 * 250];
+        [data setLength: 1024 * 250];
+        memset_pattern8([data mutableBytes], pattern, [data length]);
+
+        NSURLRequest *request = [NSURLRequest requestWithURL:[NSURL URLWithString:@"stub://foo"]];
+        NSURLSessionUploadTask *uploadTask = [session uploadTaskWithRequest:request fromData:data];
+        [uploadTask resume];
+
+        [self waitForAsyncOperationWithTimeout:5];
+
+        STAssertEqualObjects(_receivedData, expectedResponse, @"Unexpected response");
+    }
+    else
+    {
+        [SenTestLog testLogWithFormat:@"/!\\ Test skipped because the NSURLSession class is not available on this OS version. Run the tests a target with a more recent OS.\n"];
+    }
+}
+
 //---------------------------------------------------------------
 #pragma mark - Delegate Methods
 
@@ -199,7 +237,11 @@
 {
     [self notifyAsyncOperationDone];
 }
-
+- (void)URLSession:(NSURLSession *)session task:(NSURLSessionTask *)task didSendBodyData:(int64_t)bytesSent totalBytesSent:(int64_t)totalBytesSent totalBytesExpectedToSend:(int64_t)totalBytesExpectedToSend
+{
+    //TODO: Delegate Method is not called
+    NSLog(@"Did Send Data");
+}
 @end
 
 #else
